@@ -66,7 +66,7 @@ services:
           cpus: "1.0"
 
   aicoach:
-    image: ghcr.io/oxord/fitness-together-aicoach@sha256:18e16ff79da7331ba09d5d0c381a7f45145ef5d868fea50d4b81bde87d7fa5ae
+    image: ghcr.io/oxord/fitness-together-aicoach@sha256:ca5b25226919e320266ddb19d0f5f8ad2ce40074b880cd6472c13912f145a24c
     depends_on:
       aicoach-postgres:
         condition: service_started
