@@ -66,15 +66,14 @@ services:
           cpus: "1.0"
 
   aicoach:
-    image: ghcr.io/oxord/fitness-together-aicoach:latest
-    pull_policy: always
+    image: ghcr.io/oxord/fitness-together-aicoach@sha256:9bc19def73cb70a5a4ed015ac119355526a32c788fc282da551372cca69659e4
     depends_on:
       aicoach-postgres:
         condition: service_started
     environment:
       PG_HOST: aicoach-postgres
       PG_PORT: 5432
-      PG_DATABASE: aicoach
+      PG_DATABASE: fitness_rag
       PG_USER: aicoach
       PG_PASSWORD: ${AICOACH_PG_PASSWORD}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
@@ -100,11 +99,11 @@ services:
   aicoach-postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: aicoach
+      POSTGRES_DB: fitness_rag
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aicoach -d aicoach"]
+      test: ["CMD-SHELL", "pg_isready -U aicoach -d fitness_rag"]
       interval: 10s
       timeout: 5s
       start_period: 30s
