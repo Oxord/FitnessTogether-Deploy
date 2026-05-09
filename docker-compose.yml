@@ -7,8 +7,13 @@ services:
   web:
     image: ghcr.io/oxord/fitness-together-web:latest
     pull_policy: always
+    # Timeweb Apps reserves host ports 80/443 for its edge gateway (TLS
+    # termination + forwarding). The sanitizer rejects host port 80 with
+    # "Port 80 is reserved for internal use". Bind to 8080 instead and
+    # set "Application port" = 8080 in the Timeweb Apps panel so external
+    # traffic is routed here.
     ports:
-      - "80"
+      - "8080:80"
     networks:
       - ft-network
     depends_on:
