@@ -95,15 +95,16 @@ services:
           cpus: "1.0"
 
   aicoach-postgres:
-    image: ankane/pgvector:latest
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: ${AICOACH_PG_DATABASE:-fitness_rag}
       POSTGRES_USER: ${AICOACH_PG_USER:-aicoach}
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AICOACH_PG_USER:-aicoach}"]
+      test: ["CMD-SHELL", "pg_isready -U aicoach -d fitness_rag"]
       interval: 10s
       timeout: 5s
+      start_period: 30s
       retries: 5
     networks:
       - ft-network
