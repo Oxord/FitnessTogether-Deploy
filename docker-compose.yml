@@ -1,0 +1,133 @@
+# Production compose for Timeweb Apps "Docker Compose" environment.
+# All images are pre-built by CI and pulled from GHCR.
+# Source repos:
+#   web    — github.com/Oxord/FitnessTogether-Web
+#   webapi — github.com/Oxord/FitnessTogether-Backend
+#   aicoach — github.com/Oxord/FitnessTogether-PersonalAiCoach
+#
+# Only `web` binds host port 80. TLS terminated by Timeweb edge.
+
+services:
+  web:
+    image: ghcr.io/oxord/fitness-together-web:latest
+    ports:
+      - "80:80"
+    networks:
+      - ft-network
+    depends_on:
+      webapi:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  webapi:
+    image: ghcr.io/oxord/fitness-together-webapi:latest
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${FT_DB_CONNECTION_STRING}
+      - token__issuer=${JWT_ISSUER:-FitnessTogetherTeam}
+      - token__subject=${JWT_SUBJECT:-AdminTokens}
+      - token__audience=${JWT_AUDIENCE:-FitnessTogetherClient}
+      - token__key=${JWT_KEY}
+      - EmailSettings__SmtpUser=${EMAIL_SMTP_USER}
+      - EmailSettings__SmtpPass=${EMAIL_SMTP_PASS}
+      - EmailSettings__SenderEmail=${EMAIL_SENDER_EMAIL}
+      - AiCoach__BaseUrl=http://aicoach:8000
+      - AiCoach__AuthToken=${AICOACH_AUTH_TOKEN}
+      - AiCoach__TimeoutSeconds=90
+      - YooKassa__ShopId=${YOOKASSA_SHOP_ID}
+      - YooKassa__SecretKey=${YOOKASSA_SECRET_KEY}
+      - YooKassa__ReturnUrl=${YOOKASSA_RETURN_URL:-https://fitness-together.ru/billing/success}
+      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN}
+      - Telegram__ChatId=${TELEGRAM_CHAT_ID}
+      - DOTNET_gcServer=0
+    networks:
+      - ft-network
+    volumes:
+      - webapi_uploads:/app/uploads
+      - webapi_logs:/app/logs
+    depends_on:
+      aicoach:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  aicoach:
+    image: ghcr.io/oxord/fitness-together-aicoach:latest
+    depends_on:
+      aicoach-postgres:
+        condition: service_healthy
+    environment:
+      PG_HOST: aicoach-postgres
+      PG_PORT: 5432
+      PG_DATABASE: ${AICOACH_PG_DATABASE:-fitness_rag}
+      PG_USER: ${AICOACH_PG_USER:-aicoach}
+      PG_PASSWORD: ${AICOACH_PG_PASSWORD}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-deepseek-chat}
+      AICOACH_AUTH_TOKEN: ${AICOACH_AUTH_TOKEN}
+      AICOACH_LOG_TO_STDOUT: "true"
+    networks:
+      - ft-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  aicoach-postgres:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_DB: ${AICOACH_PG_DATABASE:-fitness_rag}
+      POSTGRES_USER: ${AICOACH_PG_USER:-aicoach}
+      POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
+    volumes:
+      - aicoach_postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AICOACH_PG_USER:-aicoach}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ft-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+networks:
+  ft-network:
+    driver: bridge
+
+volumes:
+  aicoach_postgres_data:
+  webapi_uploads:
+  webapi_logs:
