@@ -6,6 +6,7 @@
 services:
   web:
     image: ghcr.io/oxord/fitness-together-web:latest
+    pull_policy: always
     ports:
       - "80:80"
     networks:
@@ -27,6 +28,7 @@ services:
 
   webapi:
     image: ghcr.io/oxord/fitness-together-webapi:latest
+    pull_policy: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=${FT_DB_CONNECTION_STRING}
@@ -65,6 +67,7 @@ services:
 
   aicoach:
     image: ghcr.io/oxord/fitness-together-aicoach:latest
+    pull_policy: always
     depends_on:
       aicoach-postgres:
         condition: service_started
