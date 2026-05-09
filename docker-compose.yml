@@ -1,11 +1,7 @@
 # Production compose for Timeweb Apps "Docker Compose" environment.
 # All images are pre-built by CI and pulled from GHCR.
-# Source repos:
-#   web    — github.com/Oxord/FitnessTogether-Web
-#   webapi — github.com/Oxord/FitnessTogether-Backend
-#   aicoach — github.com/Oxord/FitnessTogether-PersonalAiCoach
-#
-# Only `web` binds host port 80. TLS terminated by Timeweb edge.
+# Volumes are not used (not supported by Timeweb Apps platform).
+# pgvector schema is initialized by aicoach entrypoint (db/init_db.py).
 
 services:
   web:
@@ -52,9 +48,6 @@ services:
       - DOTNET_gcServer=0
     networks:
       - ft-network
-    volumes:
-      - webapi_uploads:/app/uploads
-      - webapi_logs:/app/logs
     depends_on:
       aicoach:
         condition: service_started
@@ -107,9 +100,6 @@ services:
       POSTGRES_DB: ${AICOACH_PG_DATABASE:-fitness_rag}
       POSTGRES_USER: ${AICOACH_PG_USER:-aicoach}
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
-    volumes:
-      - aicoach_postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${AICOACH_PG_USER:-aicoach}"]
       interval: 10s
@@ -126,8 +116,3 @@ services:
 networks:
   ft-network:
     driver: bridge
-
-volumes:
-  aicoach_postgres_data:
-  webapi_uploads:
-  webapi_logs:
