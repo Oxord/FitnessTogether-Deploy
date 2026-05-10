@@ -129,7 +129,12 @@ services:
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aicoach"]
+      # pg_isready defaults dbname to the username when -d isn't given (unlike
+      # psql, which defaults to 'postgres'). Without an explicit -d postgres,
+      # this would probe dbname='aicoach' every 10s and flood the log with
+      # FATAL: database "aicoach" does not exist — even though the server is
+      # perfectly healthy. Pin to the always-present 'postgres' DB.
+      test: ["CMD-SHELL", "pg_isready -U aicoach -d postgres"]
       interval: 10s
       timeout: 5s
       start_period: 30s
