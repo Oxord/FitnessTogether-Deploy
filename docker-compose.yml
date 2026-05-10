@@ -1,15 +1,12 @@
 # Production compose for Timeweb Apps "Docker Compose" environment.
 # All images are pre-built by CI and pulled from GHCR.
-# Volumes are not used (not supported by Timeweb Apps platform).
 # pgvector schema is initialized by aicoach entrypoint (db/init_db.py).
 #
-# IMPORTANT: PG_DATABASE for aicoach and POSTGRES_DB for aicoach-postgres are
-# both pinned to 'postgres' (the always-present system DB). If Timeweb's
-# dashboard env-vars panel has a PG_DATABASE or POSTGRES_DB override set to
-# anything else (e.g. 'aicoach'), DELETE those overrides — they will mask
-# this compose value and reintroduce the 'database "aicoach" does not exist'
-# log spam, since the postgres image only honors POSTGRES_DB on a virgin
-# data dir, which Timeweb persists across redeploys.
+# Designed for a FRESH Timeweb application instance with a virgin persistent
+# volume. On first boot the postgres image runs initdb against an empty data
+# directory, honors POSTGRES_DB=aicoach, and creates the database before
+# aicoach connects — so the entire 'database "aicoach" does not exist' loop
+# we hit on the previous instance cannot reproduce here.
 
 services:
   web:
@@ -52,14 +49,9 @@ services:
       - EmailSettings__SmtpUser=${EMAIL_SMTP_USER}
       - EmailSettings__SmtpPass=${EMAIL_SMTP_PASS}
       - EmailSettings__SenderEmail=${EMAIL_SENDER_EMAIL}
-      # AiCoach temporarily disabled while diagnosing FATAL log spam in
-      # aicoach-postgres. With no aicoach service running we can verify whether
-      # the FATAL stream actually originates from aicoach (or its zombies left
-      # by Timeweb rolling deploys) or from some external connector. AI-coach
-      # endpoints will return 503/timeout while disabled — non-AI flows still work.
-      # - AiCoach__BaseUrl=http://aicoach:8000
-      # - AiCoach__AuthToken=${AICOACH_AUTH_TOKEN}
-      # - AiCoach__TimeoutSeconds=90
+      - AiCoach__BaseUrl=http://aicoach:8000
+      - AiCoach__AuthToken=${AICOACH_AUTH_TOKEN}
+      - AiCoach__TimeoutSeconds=90
       - YooKassa__ShopId=${YOOKASSA_SHOP_ID}
       - YooKassa__SecretKey=${YOOKASSA_SECRET_KEY}
       - YooKassa__ReturnUrl=${YOOKASSA_RETURN_URL:-https://fitness-together.ru/billing/success}
@@ -68,7 +60,9 @@ services:
       - DOTNET_gcServer=0
     networks:
       - ft-network
-    # depends_on aicoach removed — service disabled below for diagnostics.
+    depends_on:
+      aicoach:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -81,80 +75,41 @@ services:
           memory: 1G
           cpus: "1.0"
 
-  # === aicoach service DISABLED for FATAL log diagnostic ===
-  # Hours of fixes (PG_DATABASE override, hard-export in entrypoint, pre-create
-  # of both 'postgres' and legacy 'aicoach' DBs, postgres command override with
-  # log_min_messages=PANIC) have not stopped the
-  #   FATAL: database "aicoach" does not exist
-  # spam from aicoach-postgres. Time to isolate the variable: with aicoach
-  # commented out completely, only aicoach-postgres remains alive on the network.
-  #
-  # Two possible outcomes once Timeweb redeploys:
-  #   1) FATAL stream stops entirely → aicoach itself (live or its zombies left
-  #      by Timeweb rolling deploys) was the source. Re-enable aicoach with
-  #      whatever connection-pool fixes are needed.
-  #   2) FATAL stream continues → an EXTERNAL connector is hitting postgres
-  #      (Timeweb internal probe, leftover container in their orchestrator,
-  #      something we don't control). Code-level fixes won't help; the only
-  #      lever left is a Timeweb support ticket.
-  # aicoach:
-  #   image: ghcr.io/oxord/fitness-together-aicoach@sha256:20a513d621b77d4655c2acf17785a8b014f9d2c2a32d0af5d1b33cf99a2adf3d
-  #   depends_on:
-  #     aipg:
-  #       condition: service_started
-  #   environment:
-  #     PG_HOST: aipg
-  #     PG_PORT: 5432
-  #     PG_DATABASE: aicoach
-  #     PG_USER: aicoach
-  #     PG_PASSWORD: ${AICOACH_PG_PASSWORD}
-  #     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-  #     GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-  #     LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
-  #     LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-deepseek-chat}
-  #     AICOACH_AUTH_TOKEN: ${AICOACH_AUTH_TOKEN}
-  #     AICOACH_LOG_TO_STDOUT: "true"
-  #   networks:
-  #     - ft-network
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     start_period: 300s
-  #     retries: 5
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 2G
-  #         cpus: "1.0"
+  aicoach:
+    image: ghcr.io/oxord/fitness-together-aicoach:latest
+    pull_policy: always
+    depends_on:
+      aipg:
+        condition: service_started
+    environment:
+      PG_HOST: aipg
+      PG_PORT: 5432
+      PG_DATABASE: aicoach
+      PG_USER: aicoach
+      PG_PASSWORD: ${AICOACH_PG_PASSWORD}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-deepseek-chat}
+      AICOACH_AUTH_TOKEN: ${AICOACH_AUTH_TOKEN}
+      AICOACH_LOG_TO_STDOUT: "true"
+    networks:
+      - ft-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
 
-  # Renamed from 'aicoach-postgres' → 'aipg' to force Timeweb to recreate
-  # the container from scratch. Diagnostic showed the old container had been
-  # running for tens of thousands of fork-cycles (postgres backend PIDs at
-  # 68000-69000), meaning Timeweb never restarted it on prior redeploys —
-  # so neither the `command:` override nor any env change ever took effect.
-  # A new service name forces a fresh container with a virgin data dir, so:
-  #   1) POSTGRES_DB=aicoach finally runs initdb (creates the DB on first boot)
-  #   2) Zombie aicoach containers from Timeweb's rolling deploys (which still
-  #      hold pools targeting host 'aicoach-postgres') will hit DNS-resolution
-  #      failures instead of reaching this server, so the FATAL stream dies.
   aipg:
     image: pgvector/pgvector:pg16
     environment:
-      # PGDATA points at a SUBDIRECTORY of the default data path, not the
-      # default path itself. This forces the postgres image's entrypoint to
-      # find an empty directory on first start, run initdb against it, and
-      # honor POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD properly.
-      # The original aicoach-postgres deploy never ran initdb with the right
-      # POSTGRES_DB, so the 'aicoach' database was never created. Service
-      # rename alone didn't fix this — Timeweb kept the same persistent
-      # volume mounted at /var/lib/postgresql/data under the new name, so
-      # the entrypoint detected existing data and skipped initdb. Pointing
-      # PGDATA at a fresh subdir gives us a virgin cluster on the same
-      # underlying volume, with the schema we actually need from day one.
-      # On subsequent restarts the subdir is populated, so initdb won't run
-      # again and no data is lost.
-      PGDATA: /var/lib/postgresql/data/pgdata-v2
       POSTGRES_DB: aicoach
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
