@@ -108,11 +108,18 @@ services:
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aicoach -d aicoach"]
+      # pg_isready only checks that the server accepts connections — it
+      # returns OK before initdb has finished creating POSTGRES_DB. We
+      # need a probe that actually opens a connection *to the aicoach
+      # database*, otherwise dependents starting on service_healthy
+      # race ahead of DB creation. psql via the Unix socket uses the
+      # default `local trust` auth from postgres images, so no password
+      # is needed.
+      test: ["CMD-SHELL", "psql -U aicoach -d aicoach -c 'SELECT 1' >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       start_period: 30s
-      retries: 5
+      retries: 10
     networks:
       - ft-network
     deploy:
