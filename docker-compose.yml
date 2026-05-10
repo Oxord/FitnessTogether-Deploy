@@ -52,9 +52,14 @@ services:
       - EmailSettings__SmtpUser=${EMAIL_SMTP_USER}
       - EmailSettings__SmtpPass=${EMAIL_SMTP_PASS}
       - EmailSettings__SenderEmail=${EMAIL_SENDER_EMAIL}
-      - AiCoach__BaseUrl=http://aicoach:8000
-      - AiCoach__AuthToken=${AICOACH_AUTH_TOKEN}
-      - AiCoach__TimeoutSeconds=90
+      # AiCoach temporarily disabled while diagnosing FATAL log spam in
+      # aicoach-postgres. With no aicoach service running we can verify whether
+      # the FATAL stream actually originates from aicoach (or its zombies left
+      # by Timeweb rolling deploys) or from some external connector. AI-coach
+      # endpoints will return 503/timeout while disabled — non-AI flows still work.
+      # - AiCoach__BaseUrl=http://aicoach:8000
+      # - AiCoach__AuthToken=${AICOACH_AUTH_TOKEN}
+      # - AiCoach__TimeoutSeconds=90
       - YooKassa__ShopId=${YOOKASSA_SHOP_ID}
       - YooKassa__SecretKey=${YOOKASSA_SECRET_KEY}
       - YooKassa__ReturnUrl=${YOOKASSA_RETURN_URL:-https://fitness-together.ru/billing/success}
@@ -63,9 +68,7 @@ services:
       - DOTNET_gcServer=0
     networks:
       - ft-network
-    depends_on:
-      aicoach:
-        condition: service_started
+    # depends_on aicoach removed — service disabled below for diagnostics.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -78,43 +81,52 @@ services:
           memory: 1G
           cpus: "1.0"
 
-  aicoach:
-    image: ghcr.io/oxord/fitness-together-aicoach@sha256:20a513d621b77d4655c2acf17785a8b014f9d2c2a32d0af5d1b33cf99a2adf3d
-    depends_on:
-      aicoach-postgres:
-        condition: service_started
-    environment:
-      PG_HOST: aicoach-postgres
-      PG_PORT: 5432
-      # Use the always-present 'postgres' system DB instead of a custom DB.
-      # POSTGRES_DB on the postgres image only runs initdb on a virgin data
-      # dir; if Timeweb persisted any prior state, our 'aicoach' DB never gets
-      # created and every connection logs FATAL: database does not exist.
-      # Sticking to 'postgres' sidesteps that entire failure mode — we still
-      # get our own user, table, and pgvector extension, just inside a DB that
-      # is guaranteed to exist on any running postgres instance.
-      PG_DATABASE: postgres
-      PG_USER: aicoach
-      PG_PASSWORD: ${AICOACH_PG_PASSWORD}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
-      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-deepseek-chat}
-      AICOACH_AUTH_TOKEN: ${AICOACH_AUTH_TOKEN}
-      AICOACH_LOG_TO_STDOUT: "true"
-    networks:
-      - ft-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      start_period: 300s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "1.0"
+  # === aicoach service DISABLED for FATAL log diagnostic ===
+  # Hours of fixes (PG_DATABASE override, hard-export in entrypoint, pre-create
+  # of both 'postgres' and legacy 'aicoach' DBs, postgres command override with
+  # log_min_messages=PANIC) have not stopped the
+  #   FATAL: database "aicoach" does not exist
+  # spam from aicoach-postgres. Time to isolate the variable: with aicoach
+  # commented out completely, only aicoach-postgres remains alive on the network.
+  #
+  # Two possible outcomes once Timeweb redeploys:
+  #   1) FATAL stream stops entirely → aicoach itself (live or its zombies left
+  #      by Timeweb rolling deploys) was the source. Re-enable aicoach with
+  #      whatever connection-pool fixes are needed.
+  #   2) FATAL stream continues → an EXTERNAL connector is hitting postgres
+  #      (Timeweb internal probe, leftover container in their orchestrator,
+  #      something we don't control). Code-level fixes won't help; the only
+  #      lever left is a Timeweb support ticket.
+  # aicoach:
+  #   image: ghcr.io/oxord/fitness-together-aicoach@sha256:20a513d621b77d4655c2acf17785a8b014f9d2c2a32d0af5d1b33cf99a2adf3d
+  #   depends_on:
+  #     aicoach-postgres:
+  #       condition: service_started
+  #   environment:
+  #     PG_HOST: aicoach-postgres
+  #     PG_PORT: 5432
+  #     PG_DATABASE: postgres
+  #     PG_USER: aicoach
+  #     PG_PASSWORD: ${AICOACH_PG_PASSWORD}
+  #     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+  #     GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+  #     LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+  #     LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-deepseek-chat}
+  #     AICOACH_AUTH_TOKEN: ${AICOACH_AUTH_TOKEN}
+  #     AICOACH_LOG_TO_STDOUT: "true"
+  #   networks:
+  #     - ft-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     start_period: 300s
+  #     retries: 5
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2G
+  #         cpus: "1.0"
 
   aicoach-postgres:
     image: pgvector/pgvector:pg16
