@@ -141,9 +141,20 @@ services:
   aipg:
     image: pgvector/pgvector:pg16
     environment:
-      # On a virgin data dir the postgres image runs initdb with these values.
-      # POSTGRES_DB=aicoach matches what every legacy/zombie client expects,
-      # so connections from any leftover aicoach replica resolve cleanly.
+      # PGDATA points at a SUBDIRECTORY of the default data path, not the
+      # default path itself. This forces the postgres image's entrypoint to
+      # find an empty directory on first start, run initdb against it, and
+      # honor POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD properly.
+      # The original aicoach-postgres deploy never ran initdb with the right
+      # POSTGRES_DB, so the 'aicoach' database was never created. Service
+      # rename alone didn't fix this — Timeweb kept the same persistent
+      # volume mounted at /var/lib/postgresql/data under the new name, so
+      # the entrypoint detected existing data and skipped initdb. Pointing
+      # PGDATA at a fresh subdir gives us a virgin cluster on the same
+      # underlying volume, with the schema we actually need from day one.
+      # On subsequent restarts the subdir is populated, so initdb won't run
+      # again and no data is lost.
+      PGDATA: /var/lib/postgresql/data/pgdata-v2
       POSTGRES_DB: aicoach
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
