@@ -78,7 +78,14 @@ services:
     environment:
       PG_HOST: aicoach-postgres
       PG_PORT: 5432
-      PG_DATABASE: aicoach
+      # Use the always-present 'postgres' system DB instead of a custom DB.
+      # POSTGRES_DB on the postgres image only runs initdb on a virgin data
+      # dir; if Timeweb persisted any prior state, our 'aicoach' DB never gets
+      # created and every connection logs FATAL: database does not exist.
+      # Sticking to 'postgres' sidesteps that entire failure mode — we still
+      # get our own user, table, and pgvector extension, just inside a DB that
+      # is guaranteed to exist on any running postgres instance.
+      PG_DATABASE: postgres
       PG_USER: aicoach
       PG_PASSWORD: ${AICOACH_PG_PASSWORD}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
@@ -104,7 +111,13 @@ services:
   aicoach-postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: aicoach
+      # Force POSTGRES_DB to the system 'postgres' DB. Without this, the
+      # postgres image defaults POSTGRES_DB=POSTGRES_USER=aicoach, which
+      # only takes effect on a virgin data dir; under Timeweb's persistent
+      # state we keep losing that DB and flooding logs with
+      # "database aicoach does not exist". Targeting the always-present
+      # 'postgres' DB sidesteps that entire failure mode.
+      POSTGRES_DB: postgres
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
     healthcheck:
