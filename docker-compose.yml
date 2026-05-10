@@ -118,6 +118,17 @@ services:
 
   aicoach-postgres:
     image: pgvector/pgvector:pg16
+    # Suppress FATAL connect-attempt log spam from zombie aicoach containers
+    # left over by Timeweb's rolling deploys (they hold psycopg pools targeting
+    # dbname='aicoach' and reconnect every ~10s). Setting log_min_messages=PANIC
+    # silences everything below PANIC, including the FATALs. PANIC-level events
+    # (which actually crash the server) still log. This is a cosmetic mask, not
+    # a fix — the underlying replica-cleanup must come from Timeweb support;
+    # but until then, it stops the noise from drowning real signal in stdout.
+    command:
+      - postgres
+      - -c
+      - log_min_messages=PANIC
     environment:
       # Force POSTGRES_DB to the system 'postgres' DB. Without this, the
       # postgres image defaults POSTGRES_DB=POSTGRES_USER=aicoach, which
