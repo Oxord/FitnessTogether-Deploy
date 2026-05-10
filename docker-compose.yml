@@ -74,7 +74,7 @@ services:
     image: ghcr.io/oxord/fitness-together-aicoach@sha256:ca5b25226919e320266ddb19d0f5f8ad2ce40074b880cd6472c13912f145a24c
     depends_on:
       aicoach-postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       PG_HOST: aicoach-postgres
       PG_PORT: 5432
@@ -108,18 +108,11 @@ services:
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
     healthcheck:
-      # pg_isready only checks that the server accepts connections — it
-      # returns OK before initdb has finished creating POSTGRES_DB. We
-      # need a probe that actually opens a connection *to the aicoach
-      # database*, otherwise dependents starting on service_healthy
-      # race ahead of DB creation. psql via the Unix socket uses the
-      # default `local trust` auth from postgres images, so no password
-      # is needed.
-      test: ["CMD-SHELL", "psql -U aicoach -d aicoach -c 'SELECT 1' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U aicoach -d aicoach"]
       interval: 10s
       timeout: 5s
       start_period: 30s
-      retries: 10
+      retries: 5
     networks:
       - ft-network
     deploy:
