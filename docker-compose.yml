@@ -100,12 +100,12 @@ services:
   # aicoach:
   #   image: ghcr.io/oxord/fitness-together-aicoach@sha256:20a513d621b77d4655c2acf17785a8b014f9d2c2a32d0af5d1b33cf99a2adf3d
   #   depends_on:
-  #     aicoach-postgres:
+  #     aipg:
   #       condition: service_started
   #   environment:
-  #     PG_HOST: aicoach-postgres
+  #     PG_HOST: aipg
   #     PG_PORT: 5432
-  #     PG_DATABASE: postgres
+  #     PG_DATABASE: aicoach
   #     PG_USER: aicoach
   #     PG_PASSWORD: ${AICOACH_PG_PASSWORD}
   #     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
@@ -128,37 +128,25 @@ services:
   #         memory: 2G
   #         cpus: "1.0"
 
-  aicoach-postgres:
+  # Renamed from 'aicoach-postgres' → 'aipg' to force Timeweb to recreate
+  # the container from scratch. Diagnostic showed the old container had been
+  # running for tens of thousands of fork-cycles (postgres backend PIDs at
+  # 68000-69000), meaning Timeweb never restarted it on prior redeploys —
+  # so neither the `command:` override nor any env change ever took effect.
+  # A new service name forces a fresh container with a virgin data dir, so:
+  #   1) POSTGRES_DB=aicoach finally runs initdb (creates the DB on first boot)
+  #   2) Zombie aicoach containers from Timeweb's rolling deploys (which still
+  #      hold pools targeting host 'aicoach-postgres') will hit DNS-resolution
+  #      failures instead of reaching this server, so the FATAL stream dies.
+  aipg:
     image: pgvector/pgvector:pg16
-    # Suppress FATAL connect-attempt log spam from zombie aicoach containers
-    # left over by Timeweb's rolling deploys (they hold psycopg pools targeting
-    # dbname='aicoach' and reconnect every ~10s). Setting log_min_messages=PANIC
-    # silences everything below PANIC, including the FATALs. PANIC-level events
-    # (which actually crash the server) still log. This is a cosmetic mask, not
-    # a fix — the underlying replica-cleanup must come from Timeweb support;
-    # but until then, it stops the noise from drowning real signal in stdout.
-    command:
-      - postgres
-      - -c
-      - log_min_messages=PANIC
     environment:
-      # Force POSTGRES_DB to the system 'postgres' DB. Without this, the
-      # postgres image defaults POSTGRES_DB=POSTGRES_USER=aicoach, which
-      # only takes effect on a virgin data dir; under Timeweb's persistent
-      # state we keep losing that DB and flooding logs with
-      # "database aicoach does not exist". Targeting the always-present
-      # 'postgres' DB sidesteps that entire failure mode.
-      POSTGRES_DB: postgres
+      # On a virgin data dir the postgres image runs initdb with these values.
+      # POSTGRES_DB=aicoach matches what every legacy/zombie client expects,
+      # so connections from any leftover aicoach replica resolve cleanly.
+      POSTGRES_DB: aicoach
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
-    # Healthcheck removed entirely as a diagnostic step — pg_isready was
-    # historically the prime suspect for the 'database "aicoach" does not
-    # exist' FATAL log spam (it defaults dbname to username unless -d is
-    # given). Removing it lets us confirm whether the FATALs come from
-    # healthcheck probes or from real client connections (e.g. zombie
-    # aicoach replicas from Timeweb rolling deploys). depends_on uses
-    # condition: service_started for this service, not service_healthy,
-    # so removing the healthcheck has no impact on dependency resolution.
     networks:
       - ft-network
     deploy:
