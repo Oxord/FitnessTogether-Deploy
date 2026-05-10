@@ -74,7 +74,7 @@ services:
     image: ghcr.io/oxord/fitness-together-aicoach@sha256:ca5b25226919e320266ddb19d0f5f8ad2ce40074b880cd6472c13912f145a24c
     depends_on:
       aicoach-postgres:
-        condition: service_started
+        condition: service_healthy
     environment:
       PG_HOST: aicoach-postgres
       PG_PORT: 5432
