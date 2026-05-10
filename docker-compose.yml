@@ -2,6 +2,14 @@
 # All images are pre-built by CI and pulled from GHCR.
 # Volumes are not used (not supported by Timeweb Apps platform).
 # pgvector schema is initialized by aicoach entrypoint (db/init_db.py).
+#
+# IMPORTANT: PG_DATABASE for aicoach and POSTGRES_DB for aicoach-postgres are
+# both pinned to 'postgres' (the always-present system DB). If Timeweb's
+# dashboard env-vars panel has a PG_DATABASE or POSTGRES_DB override set to
+# anything else (e.g. 'aicoach'), DELETE those overrides — they will mask
+# this compose value and reintroduce the 'database "aicoach" does not exist'
+# log spam, since the postgres image only honors POSTGRES_DB on a virgin
+# data dir, which Timeweb persists across redeploys.
 
 services:
   web:
