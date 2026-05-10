@@ -128,17 +128,14 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_USER: aicoach
       POSTGRES_PASSWORD: ${AICOACH_PG_PASSWORD}
-    healthcheck:
-      # pg_isready defaults dbname to the username when -d isn't given (unlike
-      # psql, which defaults to 'postgres'). Without an explicit -d postgres,
-      # this would probe dbname='aicoach' every 10s and flood the log with
-      # FATAL: database "aicoach" does not exist — even though the server is
-      # perfectly healthy. Pin to the always-present 'postgres' DB.
-      test: ["CMD-SHELL", "pg_isready -U aicoach -d postgres"]
-      interval: 10s
-      timeout: 5s
-      start_period: 30s
-      retries: 5
+    # Healthcheck removed entirely as a diagnostic step — pg_isready was
+    # historically the prime suspect for the 'database "aicoach" does not
+    # exist' FATAL log spam (it defaults dbname to username unless -d is
+    # given). Removing it lets us confirm whether the FATALs come from
+    # healthcheck probes or from real client connections (e.g. zombie
+    # aicoach replicas from Timeweb rolling deploys). depends_on uses
+    # condition: service_started for this service, not service_healthy,
+    # so removing the healthcheck has no impact on dependency resolution.
     networks:
       - ft-network
     deploy:
