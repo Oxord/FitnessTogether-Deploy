@@ -10,10 +10,11 @@
 
 services:
   web:
-    # Pinned to /pilot lead-capture deploy (web PR #58, d89b763). Timeweb's
-    # host-side image cache was ignoring pull_policy:always on the bare :latest
-    # tag and serving the 2026-05-10 build. Re-tagging here forces a real pull.
-    image: ghcr.io/oxord/fitness-together-web@sha256:c3cecc83922504c9a99a0d9376f978576f805dadbcae1a96374e7f1df983a6ac
+    # Pinned to /pilot premium-light redesign + founder-note (web PR #60 +
+    # PR #61, main 9905f5a, 2026-05-22). Digest pinning forces Timeweb's
+    # host-side image cache to fetch a manifest it doesn't have — bare
+    # :latest is unreliable on this host.
+    image: ghcr.io/oxord/fitness-together-web@sha256:a37fd38d0f2980eaf96e31744efbb87e9a7573b5b05f09bcd10214baff27c6e9
     pull_policy: always
     # Timeweb Apps reserves host ports 80/443 for its edge gateway (TLS
     # termination + forwarding). The sanitizer rejects host port 80 with
