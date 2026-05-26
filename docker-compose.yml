@@ -44,9 +44,13 @@ services:
           cpus: "0.25"
 
   webapi:
-    # Pinned to fix(workout): coach-only scheduled workouts no longer 500
-    # (backend PR #56, release/v1.0 8da4af7, 2026-05-27).
-    image: ghcr.io/oxord/fitness-together-webapi@sha256:475f247f16efe62c504d38a30df29623fb6f9c20d97e2bc5de3cbed111ec6f80
+    # Pinned to null-input → 500 audit fix (backend PR #57, release/v1.0
+    # bf785a9, 2026-05-27): DTO data annotations on Set/Exercise/CoachNote/
+    # DirectChat reject bad inputs with a clean 400 instead of bubbling
+    # ArgumentOutOfRange / FK-violation as a useless ProblemDetails 500;
+    # ExerciseController.CreateRange now stamps CreatedBy so it can't
+    # silently spawn undeletable "system default" exercises.
+    image: ghcr.io/oxord/fitness-together-webapi@sha256:a8c011c18aca902596f1cebbe277bfb8f3ff3e61fa80f848f456625b18dc0a43
     pull_policy: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
