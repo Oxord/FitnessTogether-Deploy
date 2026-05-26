@@ -10,11 +10,13 @@
 
 services:
   web:
-    # Pinned to /pilot premium-light redesign + founder-note (web PR #60 +
-    # PR #61, main 9905f5a, 2026-05-22). Digest pinning forces Timeweb's
+    # Pinned to landing→/app/* whitescreen fix (web PR #62, main e693eac,
+    # 2026-05-26): Header «Войти/Зарегистрироваться» and StickyMobileCta
+    # now use plain <a href> instead of router <Link> so cross-SPA
+    # navigation works on first click. Digest pinning forces Timeweb's
     # host-side image cache to fetch a manifest it doesn't have — bare
     # :latest is unreliable on this host.
-    image: ghcr.io/oxord/fitness-together-web@sha256:a37fd38d0f2980eaf96e31744efbb87e9a7573b5b05f09bcd10214baff27c6e9
+    image: ghcr.io/oxord/fitness-together-web@sha256:4e181f8109c8d6b96b0095b353874db1e2e82542156f4b35e682730226499d87
     pull_policy: always
     # Timeweb Apps reserves host ports 80/443 for its edge gateway (TLS
     # termination + forwarding). The sanitizer rejects host port 80 with
