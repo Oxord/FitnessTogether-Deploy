@@ -10,13 +10,14 @@
 
 services:
   web:
-    # Pinned to landing→/app/* whitescreen fix (web PR #62, main e693eac,
-    # 2026-05-26): Header «Войти/Зарегистрироваться» and StickyMobileCta
-    # now use plain <a href> instead of router <Link> so cross-SPA
-    # navigation works on first click. Digest pinning forces Timeweb's
-    # host-side image cache to fetch a manifest it doesn't have — bare
-    # :latest is unreliable on this host.
-    image: ghcr.io/oxord/fitness-together-web@sha256:4e181f8109c8d6b96b0095b353874db1e2e82542156f4b35e682730226499d87
+    # Pinned to nginx Survey/* + dashboard hardening fix (web PR #63,
+    # main 0245152, 2026-05-26): adds Survey + AiReportConfig +
+    # CoachBranding + CoachLead + CoachService to the nginx API regex
+    # (Survey misroute was crashing /app/dashboard via ErrorBoundary),
+    # plus EarningsBannerCard guard and apiClient text/html guard.
+    # Digest pinning forces Timeweb's host-side image cache to fetch a
+    # manifest it doesn't have — bare :latest is unreliable on this host.
+    image: ghcr.io/oxord/fitness-together-web@sha256:213e8b19baa69fa3e8f6bcc886de465d9c74d9454001e158b6edcfb2f22f6f39
     pull_policy: always
     # Timeweb Apps reserves host ports 80/443 for its edge gateway (TLS
     # termination + forwarding). The sanitizer rejects host port 80 with
