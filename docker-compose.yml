@@ -44,8 +44,9 @@ services:
           cpus: "0.25"
 
   webapi:
-    # Pinned to backend PR #55 (5e6a2f6) — /Lead/Submit endpoint.
-    image: ghcr.io/oxord/fitness-together-webapi@sha256:4f38f288ee83a43dc699d4c77ea3fd2a97792e8c8d25daa1172014c9829747cd
+    # Pinned to fix(workout): coach-only scheduled workouts no longer 500
+    # (backend PR #56, release/v1.0 8da4af7, 2026-05-27).
+    image: ghcr.io/oxord/fitness-together-webapi@sha256:475f247f16efe62c504d38a30df29623fb6f9c20d97e2bc5de3cbed111ec6f80
     pull_policy: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
